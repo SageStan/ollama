@@ -2,8 +2,8 @@
 A minimal AI agent built from scratch — no agent frameworks.
 Just: an LLM + tools + a loop that lets the LLM take actions.
 
-Requires: pip install anthropic --break-system-packages
-Set your API key as an environment variable: ANTHROPIC_API_KEY
+Requires: python -m pip install ollama   
+ollama pull qwen2.5     
 """
 
 import json
