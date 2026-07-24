@@ -48,24 +48,27 @@ TOOL_FUNCTIONS = {
 # what arguments each one needs.
 TOOL_SCHEMAS = [
     {
-        "name": "calculator",
-        "description": "Evaluate a basic arithmetic expression.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "expression": {
-                    "type": "string",
-                    "description": "e.g. '2 + 2 * 3'",
-                }
-            },
-            "required": ["expression"],
-        },
+        "type": "function",
+        "function": {
+            "name": "calculator",
+            "description": "Evaluate a basic arithmetic expression.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "Example: 2 + 2 * 3"
+                    }
+                },
+                "required": ["expression"]
+            }
+        }
     },
     {
         "type": "function",
         "function": {
             "name": "get_time",
-            "description": "Get current date and time.",
+            "description": "Get the current date and time.",
             "parameters": {
                 "type": "object",
                 "properties": {}
@@ -73,6 +76,7 @@ TOOL_SCHEMAS = [
         }
     }
 ]
+
 
 # ----------------------------------------------------------------------
 # 2. MEMORY — conversation history is just a growing list of messages.
@@ -100,76 +104,63 @@ def execute_tool(tool_name: str, tool_input: dict) -> str:
 #    back -> repeat until the model gives a final text answer.
 # ----------------------------------------------------------------------
 
-def run_agent(user_message: str, max_steps: int = 6) -> str:
-    conversation_history.append({"role": "user", "content": user_message})
+def run_agent(user_message: str, max_steps: int = 6):
+
+    conversation_history.append(
+        {
+            "role": "user",
+            "content": user_message
+        }
+    )
 
     for step in range(max_steps):
-        response = ollama.chat(
-                   model=MODEL,
-                   messages=conversation_history,
-                   tools=TOOL_SCHEMAS,
-               )
 
-        message = response["message"]
-        
-    """  response = client.messages.create(
+        response = ollama.chat(
             model=MODEL,
-            max_tokens=1024,
-            system="You are a helpful assistant with access to tools. "
-                   "Use them when needed to answer accurately.",
             messages=conversation_history,
             tools=TOOL_SCHEMAS,
-        ) """
-
-           
-
-
-        # Save the assistant's turn (may contain text + tool_use blocks)
-    conversation_history.append(
-            {"role": "assistant", "content": response.content}
         )
 
-        # Did the model ask to use a tool?
-       # tool_calls = [b for b in response.content if b.type == "tool_use"]
+        message = response["message"]
 
-    tool_calls = response["message"].get("tool_calls", [])
+        conversation_history.append(message)
+
+        tool_calls = message.get("tool_calls", [])
 
 
-    if not tool_calls:
-            # No tool call -> model gave its final answer, we're done
-            final_text = "".join(
-                b.text for b in response.content if b.type == "text"
+        if not tool_calls:
+            return message["content"]
+
+
+        for call in tool_calls:
+
+            name = call["function"]["name"]
+
+            arguments = call["function"]["arguments"]
+
+
+            print(
+                f"[agent calling tool: {name} {arguments}]"
             )
-            return final_text
-
-        # Execute every requested tool call and feed results back
-    tool_results = []
-    for call in tool_calls:
-                name = call["function"]["name"]
-                arguments = call["function"]["arguments"]
-
-                print(f"calling tool: {name}({arguments})")
-
-                result = execute_tool(name, arguments)
-
-    """ for call in tool_calls:
-            print(f"  [agent is calling tool: {call.name}({call.input})]")
-            result = execute_tool(call.name, call.input) """
 
 
-    tool_results.append(
+            result = execute_tool(
+                name,
+                arguments
+            )
+
+
+            conversation_history.append(
                 {
-                    "type": "tool_result",
-                    "tool_use_id": call.id,
-                    "content": str(result),
+                    "role": "tool",
+                    "content": str(result)
                 }
             )
 
-    conversation_history.append({"role": "user", "content": tool_results})
-        # loop continues -> model sees tool results, decides next step
 
     return "Max steps reached without a final answer."
 
+ 
 
 # ----------------------------------------------------------------------
 # 5. RUN IT
